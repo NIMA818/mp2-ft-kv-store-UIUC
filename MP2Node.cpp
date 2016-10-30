@@ -35,9 +35,7 @@ MP2Node::~MP2Node() {
  * 				3) Calls the Stabilization Protocol
  */
 void MP2Node::updateRing() {
-	/*
-	 * Implement this. Parts of it are already implemented
-	 */
+
 	vector<Node> curMemList;
 	bool change = false;
 
@@ -108,9 +106,25 @@ size_t MP2Node::hashFunction(string key) {
  * 				3) Sends a message to the replica
  */
 void MP2Node::clientCreate(string key, string value) {
-	/*
-	 * Implement this
-	 */
+
+	stringstream msg_s;
+	char delim = ':';
+
+	msg_s<<MessageType::CREATE<<delim<<key<<delim<<value<<delim;
+	string msg = msg_s.str();
+
+	vector<Node> repls = findNodes(key);
+
+	int i=0;
+	for(auto it = repls.begin(); it!= repls.end(); ++it)
+	{
+		string loc_msg = msg;
+		loc_msg.push_back('0'+i);
+		size_t size = loc_msg.size();
+
+		auto addr = it->getAddress();
+		emulNet->ENsend(&(memberNode->addr),addr,(char*)loc_msg.c_str(),size);
+	}
 }
 
 /**
@@ -123,9 +137,20 @@ void MP2Node::clientCreate(string key, string value) {
  * 				3) Sends a message to the replica
  */
 void MP2Node::clientRead(string key){
-	/*
-	 * Implement this
-	 */
+	stringstream msg_s;
+	char delim = ':';
+
+	msg_s<<MessageType::READ<<delim<<key;
+	string  msg = msg_s.str();
+	size_t size = msg.size();
+
+	vector<Node> repls = findNodes(key);
+
+	for(auto it = repls.begin(); it != repls.end(); ++it)
+	{
+		auto addr = it->getAddress();
+		emulNet->ENsend(&(memberNode->addr),addr,(char*)msg.c_str(),size);
+	}
 }
 
 /**
@@ -138,9 +163,21 @@ void MP2Node::clientRead(string key){
  * 				3) Sends a message to the replica
  */
 void MP2Node::clientUpdate(string key, string value){
-	/*
-	 * Implement this
-	 */
+
+	 stringstream msg_s;
+	 char delim = ':';
+
+	 msg_s<<MessageType::UPDATE<<delim<<key<<delim<<value;
+	 string  msg = msg_s.str();
+	 size_t size = msg.size();
+
+	 vector<Node> repls = findNodes(key);
+
+	 for(auto it = repls.begin(); it!= repls.end(); ++it)
+	 {
+		 auto addr = it->getAddress();
+		 emulNet->ENsend(&(memberNode->addr),addr,(char*)msg.c_str(),size);
+	 }
 }
 
 /**
@@ -153,9 +190,20 @@ void MP2Node::clientUpdate(string key, string value){
  * 				3) Sends a message to the replica
  */
 void MP2Node::clientDelete(string key){
-	/*
-	 * Implement this
-	 */
+	 stringstream msg_s;
+	 char delim = ':';
+
+	 msg_s<<MessageType::DELETE<<delim<<key<<delim;
+	 string  msg = msg_s.str();
+	 size_t size = msg.size();
+
+	 vector<Node> repls = findNodes(key);
+
+	 for(auto it = repls.begin(); it!= repls.end(); ++it)
+	 {
+		 auto addr = it->getAddress();
+		 emulNet->ENsend(&(memberNode->addr),addr,(char*)msg.c_str(),size);
+	 }
 }
 
 /**
@@ -167,10 +215,11 @@ void MP2Node::clientDelete(string key){
  * 			   	2) Return true or false based on success or failure
  */
 bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
-	/*
-	 * Implement this
-	 */
 	// Insert key, value, replicaType into the hash table
+
+	Entry en(value,par->getcurrtime(),replica);
+	ht->create(key,en.convertToString());
+	return true;
 }
 
 /**
@@ -182,10 +231,8 @@ bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
  * 			    2) Return value
  */
 string MP2Node::readKey(string key) {
-	/*
-	 * Implement this
-	 */
 	// Read key from local hash table and return value
+	return ht->read(key);
 }
 
 /**
@@ -197,10 +244,9 @@ string MP2Node::readKey(string key) {
  * 				2) Return true or false based on success or failure
  */
 bool MP2Node::updateKeyValue(string key, string value, ReplicaType replica) {
-	/*
-	 * Implement this
-	 */
 	// Update key in local hash table and return true or false
+	Entry en(value,par->getcurrtime(),replica);
+	return ht->update(key,en.convertToString());
 }
 
 /**
@@ -212,10 +258,8 @@ bool MP2Node::updateKeyValue(string key, string value, ReplicaType replica) {
  * 				2) Return true or false based on success or failure
  */
 bool MP2Node::deletekey(string key) {
-	/*
-	 * Implement this
-	 */
 	// Delete the key from the local hash table
+	return ht->deleteKey(key);
 }
 
 /**
@@ -227,38 +271,71 @@ bool MP2Node::deletekey(string key) {
  * 				2) Handles the messages according to message types
  */
 void MP2Node::checkMessages() {
-	/*
-	 * Implement this. Parts of it are already implemented
-	 */
 	char * data;
 	int size;
 
-	/*
-	 * Declare your local variables here
-	 */
-
 	// dequeue all messages and handle them
 	while ( !memberNode->mp2q.empty() ) {
-		/*
-		 * Pop a message from the queue
-		 */
+		//Pop a message from the queue
 		data = (char *)memberNode->mp2q.front().elt;
 		size = memberNode->mp2q.front().size;
 		memberNode->mp2q.pop();
 
-		string message(data, data + size);
+		string msg(data, data + size);
 
-		/*
-		 * Handle the message types here
-		 */
+		int msg_t = stoi(msg.substr(0,1));
+
+		switch(msg_t)
+		{
+		case MessageType::CREATE :
+			 handle_create_message(msg);
+			 break;
+
+		case MessageType::UPDATE :
+			 handle_update_message(msg);
+			 break;
+
+		case MessageType::READ :
+			 handle_read_message(msg);
+			 break;
+
+		case MessageType::DELETE :
+			 handle_delete_message(msg);
+			 break;
+		default:
+			cout<<"Unknown Message Format\n";
+		}
 
 	}
-
-	/*
-	 * This function should also ensure all READ and UPDATE operation
-	 * get QUORUM replies
-	 */
 }
+
+void MP2Node::handle_create_message(string msg)
+{
+	char delim = ':';
+	auto i1 = msg.find(delim);
+	auto i2 = msg.find(delim,i1+1);
+	auto i3 = msg.find(delim,i2+1);
+
+	string key = msg.substr(i1+1,(i2-i1));		//TODO - add error checking
+	string value = msg.substr(i2+1);
+	int repl = stoi(msg.substr(i2+1));
+
+	switch(repl)
+	{
+		case 0:
+			createKeyValue(key,value,ReplicaType::PRIMARY);
+			break;
+		case 1:
+			createKeyValue(key,value,ReplicaType::SECONDARY);
+			break;
+		case 2:
+			createKeyValue(key,value,ReplicaType::TERTIARY);
+			break;
+		default:
+			cout<<"Wrong create request message\n";
+	}
+}
+
 
 /**
  * FUNCTION NAME: findNodes

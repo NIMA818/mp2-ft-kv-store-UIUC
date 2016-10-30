@@ -19,6 +19,8 @@
 #include "Message.h"
 #include "Queue.h"
 
+#include <sstream>
+
 /**
  * CLASS NAME: MP2Node
  *
@@ -47,6 +49,11 @@ private:
 	EmulNet * emulNet;
 	// Object of Log
 	Log * log;
+
+	void handle_create_message(string msg);
+	void handle_update_message(string msg);
+	void handle_read_message(string msg);
+	void handle_delete_message(string msg);
 
 public:
 	MP2Node(Member *memberNode, Params *par, EmulNet *emulNet, Log *log, Address *addressOfMember);
